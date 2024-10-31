@@ -45,8 +45,6 @@ jobs:
     steps:
       - run:
           command: echo "Workflow do projeto iniciado às $(date +%r)"
-      - discord/status:
-          success_message: "Workflow do commit #${CIRCLE_SHA1:0:7} iniciado..."
 
   test-and-build-backend:
     docker:
@@ -117,9 +115,6 @@ workflows:
     jobs:
       - greetings:
           name: Notificação de começo do workflow
-          context:
-            # contém a variável sensível necessária para enviar notificações em outro serviço
-            - Discord
       - test-and-build-backend:
           name: Teste e build do serviço de backend
           context:
