@@ -2,6 +2,37 @@
 # Stacks detected: deps:node:cocktail-menu,deps:python:cocktail-api
 version: 2.1
 
+commands:
+  instala_dependencias:
+    steps:
+      - run:
+          name: Instala dependencias com uv
+          command: |
+            pip install uv
+            uv venv
+            source .venv/bin/activate
+            uv pip install -r cocktail-api/requirements.txt
+
+  login-ghcr:
+    description: "Faz o login no GHCR (github container registry) para executar comandos do docker que precisam de autenticação"
+    steps:
+      - run:
+          name: Loga no Github Container Registry
+          command: |
+            docker login --username ${CIRCLE_PROJECT_USERNAME} --password ${GITHUB_TOKEN} ghcr.io
+
+  push-image-ghcr:
+    description: "Executa um docker push de uma imagem para o GHCR para disponibilizar um package (outro nome para docker image) no repositório"
+    parameters:
+      image:
+        type: string
+    steps:
+      - login-ghcr
+      - run:
+          name: Sobe a imagem para o GHCR
+          command: |
+            docker push << parameters.image >>
+
 jobs:
   greetings:
     docker:
