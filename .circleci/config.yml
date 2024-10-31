@@ -2,7 +2,7 @@ version: 2.1
 
 # Orbs: importam comandos ou jobs definidos pela comunidade para executar no seu workflow
 orbs:
-  discord: guitosi/discord@0.1.0
+  discord: antonioned/discord@0.1.0
 
 # Commands: definem comandos de um ou mais steps que pode ser reutilizado em vários jobs
 commands:
@@ -94,7 +94,7 @@ jobs:
       - run:
           name: Build da imagem do site
           command: |
-            docker build --tag ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-menu:${CIRCLE_SHA1:0:7} ./cocktail-menu/
+            docker build -t ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-menu:${CIRCLE_SHA1:0:7} ./cocktail-menu/
       - push-image-ghcr:
           image: ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-menu:${CIRCLE_SHA1:0:7}
 
