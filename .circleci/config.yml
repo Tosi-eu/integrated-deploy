@@ -132,13 +132,11 @@ workflows:
       - greetings:
           name: Notificação de começo do workflow
           context:
-            # contém a variável sensível necessária para enviar notificações em outro serviço
             - Discord
       - test-and-build-backend:
           name: Teste e build do serviço de backend
           context:
             - Github
-          #   - Discord
           requires:
             - Notificação de começo do workflow
       - build-frontend:
