@@ -1,5 +1,9 @@
 version: 2.1
 
+# Orbs: importam comandos ou jobs definidos pela comunidade para executar no seu workflow
+orbs:
+  discord: _guitosi/discord@0.1.0
+
 # Commands: definem comandos de um ou mais steps que pode ser reutilizado em vários jobs
 commands:
   instala_dependencias:
@@ -45,6 +49,8 @@ jobs:
     steps:
       - run:
           command: echo "Workflow do projeto iniciado às $(date +%r)"
+      - discord/status:
+          success_message: "Workflow do commit #${CIRCLE_SHA1:0:7} iniciado..."
 
   test-and-build-backend:
     docker:
@@ -109,12 +115,25 @@ jobs:
             scp ./deploy/compose.yml_filled $SSH_USER@$SSH_HOST:/tmp/compose.yml
             ssh ${SSH_USER}@${SSH_HOST} "chmod +x /tmp/deploy.sh && /tmp/deploy.sh /tmp/compose.yml"
 
+  farewell:
+    docker:
+      - image: cimg/base:stable
+    resource_class: small
+    steps:
+      - run:
+          command: echo "Workflow do projeto terminado às $(date +%r)"
+      - discord/status:
+          success_message: ":tada: Workflow do commit #${CIRCLE_SHA1:0:7} terminado com sucesso!"
+
 # Workflows: orquestram a ordem dos jobs
 workflows:
   deploy:
     jobs:
       - greetings:
           name: Notificação de começo do workflow
+          context:
+            # contém a variável sensível necessária para enviar notificações em outro serviço
+            - Discord
       - test-and-build-backend:
           name: Teste e build do serviço de backend
           context:
@@ -136,3 +155,9 @@ workflows:
           requires:
             - Teste e build do serviço de backend
             - Build do serviço de frontend
+      - farewell:
+          name: Notificação de fim do workflow
+          context:
+            - Discord
+          requires:
+            - Deploy do serviço
