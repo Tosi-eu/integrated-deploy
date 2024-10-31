@@ -1,7 +1,10 @@
-# This config was automatically generated from your source code
-# Stacks detected: deps:node:cocktail-menu,deps:python:cocktail-api
 version: 2.1
 
+# Orbs: importam comandos ou jobs definidos pela comunidade para executar no seu workflow
+orbs:
+  discord: antonioned/discord@0.1.0
+
+# Commands: definem comandos de um ou mais steps que pode ser reutilizado em vários jobs
 commands:
   instala_dependencias:
     steps:
@@ -33,16 +36,128 @@ commands:
           command: |
             docker push << parameters.image >>
 
+# Jobs: definem a ordem de comandos que serão executados passo a passo
 jobs:
   greetings:
     docker:
-        - image: cimg/base:stable
+      - image: cimg/base:stable
+      # O executor default de docker é o large, com 4 vCPUs e 8GB RAM
+      # Podemos mudar o executor com o comando a seguir e um dos valores possíveis:
+      # lista de resource classes: https://circleci.com/docs/using-docker/#available-docker-resource-classes
+      # resource_class: <class>
+    resource_class: small
     steps:
-        - checkout
-        - run:
-            command: echo "Bem vindo ao CircleCI"
+      - run:
+          command: echo "Workflow do projeto iniciado às $(date +%r)"
+      - discord/status:
+          success_message: "Workflow do commit #${CIRCLE_SHA1:0:7} iniciado..."
 
+  test-and-build-backend:
+    docker:
+      - image: cimg/python:3.10
+    resource_class: medium
+    steps:
+      - setup_remote_docker:
+          # a build sem caching está durando menos de um minuto, vamos deixar este aqui desativado
+          docker_layer_caching: false
+      - checkout
+      - instala_dependencias
+      - run:
+          name: Testes unitários da API
+          command: |
+            source .venv/bin/activate
+            cd cocktail-api
+            export PYTHONPATH=.
+            pytest -c pytest.ini --junitxml="/tmp/reports/junit.xml" --cov=src/ --cov-report=term-missing .
+      - store_test_results:
+          # salva os resultados dos testes unitários para análise no circleci
+          path: /tmp/reports
+      - run:
+          name: Build da imagem da API
+          command: |
+            docker build --tag ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-api:${CIRCLE_SHA1:0:7} ./cocktail-api/
+      - push-image-ghcr:
+          image: ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-api:${CIRCLE_SHA1:0:7}
+      # - discord/status:
+      #     fail_only: true
+      #     failure_message: ":red_circle: Algo deu errado no workflow de #${CIRCLE_SHA1:0:7}!"
+
+  build-frontend:
+    docker:
+      - image: cimg/base:stable
+    resource_class: medium
+    steps:
+      - setup_remote_docker:
+          # infelizmente um dos únicos jeitos de melhorar a performance do npm em CI é ativando caching
+          docker_layer_caching: true
+      - checkout
+      - run:
+          name: Build da imagem do site
+          command: |
+            docker build --tag ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-menu:${CIRCLE_SHA1:0:7} ./cocktail-menu/
+      - push-image-ghcr:
+          image: ghcr.io/${GITHUB_USERNAME}/${CIRCLE_PROJECT_REPONAME}/cocktail-menu:${CIRCLE_SHA1:0:7}
+
+  deploy-service:
+    machine:
+      image: ubuntu-2404:2024.05.1
+      docker_layer_caching: false
+      resource_class: medium
+    steps:
+      - checkout
+      - login-ghcr
+      - run:
+          name: Preparar e enviar script de deploy
+          command: |
+            ./deploy/fill_variables.py ./deploy/deploy.sh
+            ./deploy/fill_variables.py ./deploy/compose.yml
+            scp ./deploy/deploy.sh_filled $SSH_USER@$SSH_HOST:/tmp/deploy.sh
+            scp ./deploy/compose.yml_filled $SSH_USER@$SSH_HOST:/tmp/compose.yml
+            ssh ${SSH_USER}@${SSH_HOST} "chmod +x /tmp/deploy.sh && /tmp/deploy.sh /tmp/compose.yml"
+
+  farewell:
+    docker:
+      - image: cimg/base:stable
+    resource_class: small
+    steps:
+      - run:
+          command: echo "Workflow do projeto terminado às $(date +%r)"
+      - discord/status:
+          success_message: ":tada: Workflow do commit #${CIRCLE_SHA1:0:7} terminado com sucesso!"
+
+# Workflows: orquestram a ordem dos jobs
 workflows:
-    hello-world:
-      jobs:
-        - greetings
+  deploy:
+    jobs:
+      - greetings:
+          name: Notificação de começo do workflow
+          context:
+            # contém a variável sensível necessária para enviar notificações em outro serviço
+            - Discord
+      - test-and-build-backend:
+          name: Teste e build do serviço de backend
+          context:
+            - Github
+          #   - Discord
+          requires:
+            - Notificação de começo do workflow
+      - build-frontend:
+          name: Build do serviço de frontend
+          context:
+            - Github
+          requires:
+            - Notificação de começo do workflow
+      - deploy-service:
+          name: Deploy do serviço
+          context:
+            - Github
+            - Vultr
+          requires:
+            - Teste e build do serviço de backend
+            - Build do serviço de frontend
+      - farewell:
+          name: Notificação de fim do workflow
+          context:
+            - Discord
+          requires:
+            - Deploy do serviço
