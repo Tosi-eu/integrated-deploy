@@ -2,7 +2,7 @@ version: 2.1
 
 # Orbs: importam comandos ou jobs definidos pela comunidade para executar no seu workflow
 orbs:
-  discord: _guitosi/discord@0.1.0
+  discord: guitosi/discord@0.1.0
 
 # Commands: definem comandos de um ou mais steps que pode ser reutilizado em vários jobs
 commands:
