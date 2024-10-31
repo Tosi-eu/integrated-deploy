@@ -10,3 +10,8 @@ jobs:
         - checkout
         - run:
             command: echo "Bem vindo ao CircleCI"
+
+workflows:
+    hello-world:
+      jobs:
+        - greetings
